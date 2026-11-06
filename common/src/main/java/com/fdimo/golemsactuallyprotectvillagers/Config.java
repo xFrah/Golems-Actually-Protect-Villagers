@@ -34,7 +34,7 @@ public class Config {
     public boolean enableQueueDebug = false;
 
     // Broadcast golem AI state and actions directly to in-game Minecraft chat
-    public boolean enableChatDebug = true;
+    public boolean enableChatDebug = false;
 
     // Enable debug logging
     public boolean enableDebugLogs = false;
