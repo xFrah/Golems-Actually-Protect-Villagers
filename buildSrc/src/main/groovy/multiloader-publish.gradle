@@ -1,0 +1,52 @@
+plugins {
+    id 'me.modmuss50.mod-publish-plugin'
+}
+
+publishMods {
+    file = tasks.named("jar").flatMap { it.archiveFile }
+    def changelogFile = rootProject.file("CHANGELOG.md")
+    def changelogText = changelogFile.exists() ? changelogFile.text : "See GitHub releases for changelog."
+
+    changelog = changelogText
+    type = STABLE
+    version = project.version
+    displayName = "${project.mod_id}-${project.version}-${project.minecraft_version}-${project.name}"
+
+    // We use the project name (e.g. 'fabric', 'neoforge', 'forge') as the loader
+    modLoaders.add(project.name)
+
+    def envFile = rootProject.file(".env")
+    def env = [:]
+    if (envFile.exists()) {
+        envFile.readLines().each { line ->
+            if (line.trim().length() > 0 && !line.startsWith("#")) {
+                def parts = line.split("=", 2)
+                if (parts.length == 2) {
+                    env[parts[0].trim()] = parts[1].trim()
+                }
+            }
+        }
+    }
+    
+    def getSecret = { String key ->
+        return env[key] ?: System.getenv(key)
+    }
+
+    if (project.hasProperty("curseforge_id")) {
+        curseforge {
+            accessToken = getSecret("CURSEFORGE_TOKEN")
+            projectId = project.curseforge_id
+            minecraftVersions.addAll(project.publish_minecraft_versions.split(","))
+            clientRequired = true
+            serverRequired = true
+        }
+    }
+    
+    if (project.hasProperty("modrinth_id")) {
+        modrinth {
+            accessToken = getSecret("MODRINTH_TOKEN")
+            projectId = project.modrinth_id
+            minecraftVersions.addAll(project.publish_minecraft_versions.split(","))
+        }
+    }
+}

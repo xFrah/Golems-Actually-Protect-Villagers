@@ -1,0 +1,10 @@
+{
+  "villagerProximityThreatRadius": 10.0,
+  "golemScanRadius": 32.0,
+  "singleGolemQueueLimit": 5,
+  "maxPathfindingNodes": 200,
+  "asyncQueueCapacity": 1000,
+  "enableQueueDebug": false,
+  "enableChatDebug": true,
+  "enableDebugLogs": false
+}

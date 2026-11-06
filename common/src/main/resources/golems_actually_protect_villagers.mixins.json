@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.fdimo.golemsactuallyprotectvillagers.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinIronGolem"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
