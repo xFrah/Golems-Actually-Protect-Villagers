@@ -29,7 +29,8 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     private final IronGolem golem;
     private long lastScanTime = 0;
 
-    private boolean isEvaluatingAsync = false;
+    private volatile boolean isEvaluatingAsync = false;
+    private long asyncStartTime = 0;
     @Nullable
     private Mob pendingTarget;
     @Nullable
@@ -72,8 +73,14 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         }
 
         // If an async pathfinding job is already running on ASYNC_POOL, wait for it
+        // Safety: if the async job has been pending for more than 5 seconds (100 ticks),
+        // assume the task was discarded by DiscardOldestPolicy and reset
         if (this.isEvaluatingAsync) {
-            return false;
+            if (serverLevel.getGameTime() - this.asyncStartTime > 100) {
+                this.isEvaluatingAsync = false;
+            } else {
+                return false;
+            }
         }
 
         // Throttle scans to every 10 ticks (0.5s) when idle
@@ -193,6 +200,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             this.golem.getId(), candidates.size()));
 
         this.isEvaluatingAsync = true;
+        this.asyncStartTime = level.getGameTime();
 
         AsyncGolemPathfinder.evaluateThreatsAsync(this.golem, level, candidates, evaluated -> {
             this.isEvaluatingAsync = false;
@@ -220,14 +228,10 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                     best.getPathDistance(),
                     best.getFinalScore()));
 
+                // Store for canUse() to pick up on the next tick — the goal lifecycle
+                // will call start() which sets the target and kicks off navigation cleanly
                 this.pendingTarget = best.getMob();
                 this.pendingPath = best.getPath();
-
-                // Immediately engage target on the server thread
-                this.golem.setTarget(best.getMob());
-                if (best.getPath() != null && best.getPath().canReach()) {
-                    this.golem.getNavigation().moveTo(best.getPath(), 1.25);
-                }
             } else if (!evaluated.isEmpty()) {
                 sendChatDebug(level, String.format("§6[Golem #%d] §7Evaluated %d candidate(s), but none qualify as an active danger.",
                     this.golem.getId(), evaluated.size()));

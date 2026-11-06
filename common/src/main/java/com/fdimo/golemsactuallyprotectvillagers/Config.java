@@ -19,7 +19,7 @@ public class Config {
     public double villagerProximityThreatRadius = 10.0;
 
     // Radius around golems to scan for threats and villagers
-    public double golemScanRadius = 32.0;
+    public double golemScanRadius = 48.0;
 
     // Maximum number of candidates evaluated per golem in a single async evaluation
     public int singleGolemQueueLimit = 5;
