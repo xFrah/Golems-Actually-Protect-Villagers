@@ -8,7 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -62,7 +62,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         // 1. If an async evaluation just finished and provided a valid target, adopt it immediately
         if (this.pendingTarget != null) {
             if (this.pendingTarget.isAlive() && !this.pendingTarget.isRemoved() && this.golem.canAttack(this.pendingTarget)) {
-                if (this.pendingTarget.getType() == EntityType.DROWNED && this.pendingTarget.isInWater()) {
+                if (this.pendingTarget.getType() == EntityTypes.DROWNED && this.pendingTarget.isInWater()) {
                     this.pendingTarget = null;
                     this.pendingPath = null;
                 } else {
@@ -108,7 +108,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     @Override
     public boolean canContinueToUse() {
-        if (this.targetMob != null && this.targetMob.getType() == EntityType.DROWNED && this.targetMob.isInWater()) {
+        if (this.targetMob != null && this.targetMob.getType() == EntityTypes.DROWNED && this.targetMob.isInWater()) {
             return false;
         }
         return super.canContinueToUse();
@@ -191,8 +191,8 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
         List<Mob> nearbyEnemies = level.getEntitiesOfClass(Mob.class, scanArea, mob -> {
             if (!mob.isAlive() || mob.isRemoved()) return false;
-            if (mob.getType() == EntityType.CREEPER) return false;
-            if (!((mob instanceof Enemy) || mob.getType().is(EntityTypeTags.RAIDERS))) return false;
+            if (mob.getType() == EntityTypes.CREEPER) return false;
+            if (!((mob instanceof Enemy) || mob.is(EntityTypeTags.RAIDERS))) return false;
             return this.golem.canAttack(mob);
         });
 
@@ -269,7 +269,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     }
 
     private boolean isDrownedPathEndingInWater(ServerLevel level, ThreatCandidate candidate) {
-        if (candidate.getMob().getType() != EntityType.DROWNED) {
+        if (candidate.getMob().getType() != EntityTypes.DROWNED) {
             return false;
         }
 
@@ -291,9 +291,9 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     private boolean isInnateVillagerThreat(Mob mob) {
         return (mob instanceof Zombie)
-            || mob.getType().is(EntityTypeTags.RAIDERS)
-            || mob.getType() == EntityType.VEX
-            || mob.getType() == EntityType.ZOGLIN;
+            || mob.is(EntityTypeTags.RAIDERS)
+            || mob.getType() == EntityTypes.VEX
+            || mob.getType() == EntityTypes.ZOGLIN;
     }
 
     private double calculateBaseUrgency(Mob enemy, List<Villager> villagers) {
