@@ -96,6 +96,11 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     }
 
     @Override
+    protected double getFollowDistance() {
+        return Math.max(super.getFollowDistance(), Config.DATA.golemScanRadius);
+    }
+
+    @Override
     public void start() {
         this.golem.setTarget(this.targetMob);
 
