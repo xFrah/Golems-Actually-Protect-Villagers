@@ -191,6 +191,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
         List<Mob> nearbyEnemies = level.getEntitiesOfClass(Mob.class, scanArea, mob -> {
             if (!mob.isAlive() || mob.isRemoved()) return false;
+            if (mob.getType() == EntityType.CREEPER) return false;
             if (!((mob instanceof Enemy) || mob.getType().is(EntityTypeTags.RAIDERS))) return false;
             return this.golem.canAttack(mob);
         });
@@ -288,16 +289,19 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         return false;
     }
 
+    private boolean isInnateVillagerThreat(Mob mob) {
+        return (mob instanceof Zombie)
+            || mob.getType().is(EntityTypeTags.RAIDERS)
+            || mob.getType() == EntityType.VEX
+            || mob.getType() == EntityType.ZOGLIN;
+    }
+
     private double calculateBaseUrgency(Mob enemy, List<Villager> villagers) {
-        double urgency = 0.0;
-
-        // 1. Is the enemy actively targeting a living villager? (+100.0)
+        // 1. Is the enemy actively targeting a living villager?
         LivingEntity enemyTarget = enemy.getTarget();
-        if (enemyTarget instanceof Villager targetVillager && targetVillager.isAlive() && !targetVillager.isRemoved()) {
-            urgency += 100.0;
-        }
+        boolean isTargetingVillager = (enemyTarget instanceof Villager targetVillager && targetVillager.isAlive() && !targetVillager.isRemoved());
 
-        // 2. Did this enemy damage any nearby villager recently (within 10s / 200 ticks)? (+80.0)
+        // 2. Did this enemy damage any nearby villager recently (within 10s / 200 ticks)?
         boolean hurtRecent = false;
         double closestVillagerDist = Double.MAX_VALUE;
         boolean villagerPanicking = false;
@@ -314,22 +318,38 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             }
         }
 
+        boolean isCloseToVillager = (closestVillagerDist <= Config.DATA.villagerProximityThreatRadius);
+        boolean isInnateThreat = this.isInnateVillagerThreat(enemy);
+
+        // Menace check: Only engage if actively targeting/damaging a villager,
+        // OR if it is an innate villager-hunter actually close to a villager.
+        // Non-menace mobs (like spiders or neutral passers-by) will never be targeted.
+        if (!isTargetingVillager && !hurtRecent && !(isCloseToVillager && isInnateThreat)) {
+            return 0.0;
+        }
+
+        double urgency = 0.0;
+
+        if (isTargetingVillager) {
+            urgency += 100.0;
+        }
+
         if (hurtRecent) {
             urgency += 80.0;
         }
 
-        // 3. Proximity to nearest villager (up to +50.0 points when within 10 blocks)
-        if (closestVillagerDist <= Config.DATA.villagerProximityThreatRadius) {
+        // Proximity to nearest villager (up to +50.0 points when within 10 blocks)
+        if (isCloseToVillager) {
             urgency += Math.max(0.0, (Config.DATA.villagerProximityThreatRadius - closestVillagerDist) * 5.0);
         }
 
-        // 4. Zombie breaking a wooden door near any villager (+40.0)
-        if (enemy instanceof Zombie zombie && zombie.canBreakDoors() && closestVillagerDist <= Config.DATA.villagerProximityThreatRadius) {
+        // Zombie breaking a wooden door near any villager (+40.0)
+        if (enemy instanceof Zombie zombie && zombie.canBreakDoors() && isCloseToVillager) {
             urgency += 40.0;
         }
 
-        // 5. Nearest villager is panicking (+25.0)
-        if (villagerPanicking && closestVillagerDist <= Config.DATA.villagerProximityThreatRadius) {
+        // Nearest villager is panicking (+25.0)
+        if (villagerPanicking && isCloseToVillager) {
             urgency += 25.0;
         }
 
