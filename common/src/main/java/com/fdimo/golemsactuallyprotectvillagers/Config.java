@@ -2,6 +2,7 @@ package com.fdimo.golemsactuallyprotectvillagers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -49,35 +50,71 @@ public class Config {
 
     public static void load() {
         Path configPath = CONFIG_FILE.toPath();
+        boolean needsSave = false;
+
         if (Files.exists(configPath)) {
             try (BufferedReader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
-                DATA = GSON.fromJson(reader, Config.class);
-                if (DATA == null) {
+                JsonObject json = GSON.fromJson(reader, JsonObject.class);
+                if (json != null) {
+                    DATA = GSON.fromJson(json, Config.class);
+                    if (DATA == null) {
+                        DATA = new Config();
+                        needsSave = true;
+                    }
+
+                    // Detect missing keys (e.g. upgrading from an older version of the mod)
+                    if (!json.has("idleScanIntervalTicks")
+                        || !json.has("villagerProximityThreatRadius")
+                        || !json.has("golemScanRadius")
+                        || !json.has("singleGolemQueueLimit")
+                        || !json.has("maxPathfindingNodes")
+                        || !json.has("asyncQueueCapacity")
+                        || !json.has("enableQueueDebug")
+                        || !json.has("enableChatDebug")
+                        || !json.has("enableDebugLogs")) {
+                        needsSave = true;
+                    }
+                } else {
                     DATA = new Config();
+                    needsSave = true;
                 }
+
                 if (DATA.idleScanIntervalTicks <= 0) {
                     DATA.idleScanIntervalTicks = 100;
+                    needsSave = true;
                 }
                 if (DATA.golemScanRadius <= 0) {
                     DATA.golemScanRadius = 48.0;
+                    needsSave = true;
                 }
                 if (DATA.villagerProximityThreatRadius <= 0) {
                     DATA.villagerProximityThreatRadius = 10.0;
+                    needsSave = true;
                 }
                 if (DATA.singleGolemQueueLimit <= 0) {
                     DATA.singleGolemQueueLimit = 5;
+                    needsSave = true;
                 }
                 if (DATA.maxPathfindingNodes <= 0) {
                     DATA.maxPathfindingNodes = 200;
+                    needsSave = true;
                 }
                 if (DATA.asyncQueueCapacity <= 0) {
                     DATA.asyncQueueCapacity = 1000;
+                    needsSave = true;
                 }
             } catch (Exception e) {
                 Constants.LOG.error("Failed to read config file", e);
+                DATA = new Config();
+                needsSave = true;
             }
+        } else {
+            needsSave = true;
         }
-        save();
+
+        if (needsSave) {
+            save();
+        }
         Constants.initThreadPool();
     }
 
