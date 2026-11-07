@@ -3,7 +3,6 @@ plugins {
 }
 
 publishMods {
-    file = tasks.named("jar").flatMap { it.archiveFile }
     def changelogFile = rootProject.file("CHANGELOG.md")
     def changelogText = changelogFile.exists() ? changelogFile.text : "See GitHub releases for changelog."
 
