@@ -21,6 +21,9 @@ public class Config {
     // Radius around golems to scan for threats and villagers
     public double golemScanRadius = 48.0;
 
+    // Interval in ticks between threat scans when a golem is idle (100 ticks = 5 seconds)
+    public int idleScanIntervalTicks = 100;
+
     // Maximum number of candidates evaluated per golem in a single async evaluation
     public int singleGolemQueueLimit = 5;
 
