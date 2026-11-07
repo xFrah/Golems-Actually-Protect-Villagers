@@ -2,10 +2,13 @@ package com.fdimo.golemsactuallyprotectvillagers.ai;
 
 import com.fdimo.golemsactuallyprotectvillagers.Config;
 import com.fdimo.golemsactuallyprotectvillagers.Constants;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.EntityTypeTags;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -15,6 +18,7 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 
@@ -58,11 +62,16 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         // 1. If an async evaluation just finished and provided a valid target, adopt it immediately
         if (this.pendingTarget != null) {
             if (this.pendingTarget.isAlive() && !this.pendingTarget.isRemoved() && this.golem.canAttack(this.pendingTarget)) {
-                this.targetMob = this.pendingTarget;
-                this.precomputedPath = this.pendingPath;
-                this.pendingTarget = null;
-                this.pendingPath = null;
-                return true;
+                if (this.pendingTarget.getType() == EntityType.DROWNED && this.pendingTarget.isInWater()) {
+                    this.pendingTarget = null;
+                    this.pendingPath = null;
+                } else {
+                    this.targetMob = this.pendingTarget;
+                    this.precomputedPath = this.pendingPath;
+                    this.pendingTarget = null;
+                    this.pendingPath = null;
+                    return true;
+                }
             } else {
                 this.pendingTarget = null;
                 this.pendingPath = null;
@@ -99,6 +108,9 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     @Override
     public boolean canContinueToUse() {
+        if (this.targetMob != null && this.targetMob.getType() == EntityType.DROWNED && this.targetMob.isInWater()) {
+            return false;
+        }
         return super.canContinueToUse();
     }
 
@@ -224,7 +236,13 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             ThreatCandidate best = null;
             double highestScore = 0.0;
             for (ThreatCandidate candidate : evaluated) {
-                if (candidate.getMob().isAlive() && !candidate.getMob().isRemoved() && candidate.getFinalScore() > highestScore) {
+                if (!candidate.getMob().isAlive() || candidate.getMob().isRemoved()) {
+                    continue;
+                }
+                if (this.isDrownedPathEndingInWater(level, candidate)) {
+                    continue;
+                }
+                if (candidate.getFinalScore() > highestScore) {
                     highestScore = candidate.getFinalScore();
                     best = candidate;
                 }
@@ -247,6 +265,27 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                     this.golem.getId(), evaluated.size()));
             }
         });
+    }
+
+    private boolean isDrownedPathEndingInWater(ServerLevel level, ThreatCandidate candidate) {
+        if (candidate.getMob().getType() != EntityType.DROWNED) {
+            return false;
+        }
+
+        if (candidate.getMob().isInWater()) {
+            return true;
+        }
+
+        Path path = candidate.getPath();
+        if (path != null && path.getEndNode() != null) {
+            Node endNode = path.getEndNode();
+            BlockPos endPos = new BlockPos(endNode.x, endNode.y, endNode.z);
+            if (level.getFluidState(endPos).is(FluidTags.WATER) || level.getFluidState(endPos.above()).is(FluidTags.WATER)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private double calculateBaseUrgency(Mob enemy, List<Villager> villagers) {
