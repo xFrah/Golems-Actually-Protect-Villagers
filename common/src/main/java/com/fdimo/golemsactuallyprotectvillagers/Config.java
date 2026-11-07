@@ -3,10 +3,15 @@ package com.fdimo.golemsactuallyprotectvillagers;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class Config {
 
@@ -43,8 +48,9 @@ public class Config {
     public boolean enableDebugLogs = false;
 
     public static void load() {
-        if (CONFIG_FILE.exists()) {
-            try (FileReader reader = new FileReader(CONFIG_FILE)) {
+        Path configPath = CONFIG_FILE.toPath();
+        if (Files.exists(configPath)) {
+            try (BufferedReader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 DATA = GSON.fromJson(reader, Config.class);
                 if (DATA == null) {
                     DATA = new Config();
@@ -76,11 +82,25 @@ public class Config {
     }
 
     public static void save() {
-        CONFIG_FILE.getParentFile().mkdirs();
-        try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
-            GSON.toJson(DATA, writer);
+        Path configPath = CONFIG_FILE.toPath();
+        Path tempPath = configPath.resolveSibling(configPath.getFileName() + ".tmp");
+
+        try {
+            if (configPath.getParent() != null) {
+                Files.createDirectories(configPath.getParent());
+            }
+
+            try (BufferedWriter writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
+                GSON.toJson(DATA, writer);
+            }
+
+            try {
+                Files.move(tempPath, configPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempPath, configPath, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
-            Constants.LOG.error("Failed to save config file", e);
+            Constants.LOG.error("Failed to save config file atomically", e);
         }
     }
 }
