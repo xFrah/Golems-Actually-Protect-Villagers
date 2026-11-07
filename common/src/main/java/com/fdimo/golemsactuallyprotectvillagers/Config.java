@@ -49,6 +49,21 @@ public class Config {
                 if (DATA == null) {
                     DATA = new Config();
                 }
+                if (DATA.idleScanIntervalTicks <= 0) {
+                    DATA.idleScanIntervalTicks = 100;
+                }
+                if (DATA.golemScanRadius <= 0) {
+                    DATA.golemScanRadius = 48.0;
+                }
+                if (DATA.villagerProximityThreatRadius <= 0) {
+                    DATA.villagerProximityThreatRadius = 10.0;
+                }
+                if (DATA.singleGolemQueueLimit <= 0) {
+                    DATA.singleGolemQueueLimit = 5;
+                }
+                if (DATA.maxPathfindingNodes <= 0) {
+                    DATA.maxPathfindingNodes = 200;
+                }
                 if (DATA.asyncQueueCapacity <= 0) {
                     DATA.asyncQueueCapacity = 1000;
                 }

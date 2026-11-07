@@ -1,6 +1,2 @@
-- Fixed golems rapidly engaging and disengaging targets due to vanilla follow range limit
-- Increased golem follow range buffer beyond scan radius to prevent target thrashing
-- Added a cooldown after disengaging before acquiring or evaluating new targets
-- Golems no longer engage drowned if the drowned or the path ends in water
-- Golems only target mobs that are actively menacing villagers or innate villager hunters close to villagers
-- Harmless mobs to villagers like spiders and creepers are no longer targeted
+- Golems only target reachable threats, preventing them from targeting mobs in sealed underground caves
+- Golems now scan every 5 seconds (100 ticks) to improve performance
