@@ -1,8 +1,6 @@
-# Changelog
-
-## 1.0.0
-- **Stateless On-Demand Target Goal (`ProtectVillagersTargetGoal`)**: Purely stateless evaluation registered at Priority 2. Re-evaluates threats live in real-time when the golem is idle.
-- **Dynamic Threat Scoring**: Ranks threats based on active villager targeting, recent damage, close proximity, door-breaking, and panic.
-- **Pathfinded Distance Scaling**: Scales base urgency inversely by real navigation walking steps (`Path.getNodeCount()`), ensuring close threats are balanced fairly against distant emergencies.
-- **Async Bounded Pathfinder Queue (`ASYNC_POOL`)**: Off-thread A* path calculation using a bounded daemon thread pool queue (`LinkedBlockingQueue` with `DiscardOldestPolicy`) and snapshot `PathNavigationRegion`, keeping the main server thread lag-free.
-- **Full MultiLoader Support**: Common code shared seamlessly across Fabric and NeoForge (Minecraft 26.3+).
+- Fixed golems rapidly engaging and disengaging targets due to vanilla follow range limit
+- Increased golem follow range buffer beyond scan radius to prevent target thrashing
+- Added a cooldown after disengaging before acquiring or evaluating new targets
+- Golems no longer engage drowned if the drowned or the path ends in water
+- Golems only target mobs that are actively menacing villagers or innate villager hunters close to villagers
+- Harmless mobs to villagers like spiders and creepers are no longer targeted
