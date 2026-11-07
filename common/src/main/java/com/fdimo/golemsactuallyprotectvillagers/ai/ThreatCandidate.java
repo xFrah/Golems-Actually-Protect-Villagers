@@ -2,14 +2,12 @@ package com.fdimo.golemsactuallyprotectvillagers.ai;
 
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.pathfinder.Path;
-import org.jspecify.annotations.Nullable;
 
 public class ThreatCandidate {
 
     private final Mob mob;
     private final double baseUrgency;
     private final double euclideanDist;
-    @Nullable
     private Path path;
     private boolean reachable = false;
     private int pathDistance = Integer.MAX_VALUE;
@@ -33,7 +31,6 @@ public class ThreatCandidate {
         return this.euclideanDist;
     }
 
-    @Nullable
     public Path getPath() {
         return this.path;
     }
@@ -50,7 +47,7 @@ public class ThreatCandidate {
         return this.finalScore;
     }
 
-    public void setPathResult(@Nullable Path path, boolean reachable, int pathDistance) {
+    public void setPathResult(Path path, boolean reachable, int pathDistance) {
         this.path = path;
         this.reachable = reachable;
         this.pathDistance = pathDistance;

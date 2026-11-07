@@ -17,7 +17,6 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
-import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,13 +30,9 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     private volatile boolean isEvaluatingAsync = false;
     private long asyncStartTime = 0;
-    @Nullable
     private Mob pendingTarget;
-    @Nullable
     private Path pendingPath;
-    @Nullable
     private Path precomputedPath;
-    @Nullable
     private String lastTargetName;
 
     public ProtectVillagersTargetGoal(IronGolem golem) {
@@ -169,7 +164,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
         List<Mob> nearbyEnemies = level.getEntitiesOfClass(Mob.class, scanArea, mob -> {
             if (!mob.isAlive() || mob.isRemoved()) return false;
-            if (!((mob instanceof Enemy) || mob.is(EntityTypeTags.RAIDERS))) return false;
+            if (!((mob instanceof Enemy) || mob.getType().is(EntityTypeTags.RAIDERS))) return false;
             return this.golem.canAttack(mob);
         });
 
