@@ -30,6 +30,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     private volatile boolean isEvaluatingAsync = false;
     private long asyncStartTime = 0;
+    private long lastDisengageTime = 0;
     private Mob pendingTarget;
     private Path pendingPath;
     private Path precomputedPath;
@@ -44,6 +45,13 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     @Override
     public boolean canUse() {
         if (!(this.golem.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+
+        long gameTime = serverLevel.getGameTime();
+
+        // Debounce: cooldown of 20 ticks (1.0s) after disengaging before evaluating or acquiring a new target
+        if (gameTime - this.lastDisengageTime < 20) {
             return false;
         }
 
@@ -79,7 +87,6 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         }
 
         // Throttle scans to every 10 ticks (0.5s) when idle
-        long gameTime = serverLevel.getGameTime();
         if (gameTime - this.lastScanTime < 10) {
             return false;
         }
@@ -97,7 +104,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     @Override
     protected double getFollowDistance() {
-        return Math.max(super.getFollowDistance(), Config.DATA.golemScanRadius);
+        return Math.max(super.getFollowDistance(), Config.DATA.golemScanRadius + 10.0);
     }
 
     @Override
@@ -129,10 +136,13 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     @Override
     public void stop() {
-        if (this.lastTargetName != null && this.golem.level() instanceof ServerLevel serverLevel) {
-            sendChatDebug(serverLevel, String.format("§6[Golem #%d] §bDisengaged from %s (target defeated or lost).",
-                this.golem.getId(), this.lastTargetName));
-            this.lastTargetName = null;
+        if (this.golem.level() instanceof ServerLevel serverLevel) {
+            this.lastDisengageTime = serverLevel.getGameTime();
+            if (this.lastTargetName != null) {
+                sendChatDebug(serverLevel, String.format("§6[Golem #%d] §bDisengaged from %s (target defeated or lost).",
+                    this.golem.getId(), this.lastTargetName));
+                this.lastTargetName = null;
+            }
         }
         this.precomputedPath = null;
         this.pendingTarget = null;
