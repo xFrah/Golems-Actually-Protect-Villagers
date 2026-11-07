@@ -240,6 +240,9 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                 if (!candidate.getMob().isAlive() || candidate.getMob().isRemoved()) {
                     continue;
                 }
+                if (!candidate.isReachable()) {
+                    continue;
+                }
                 if (this.isDrownedPathEndingInWater(level, candidate)) {
                     continue;
                 }
