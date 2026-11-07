@@ -10,7 +10,7 @@ publishMods {
     changelog = changelogText
     type = STABLE
     version = project.version
-    displayName = "${project.mod_id}-${project.version}-${project.minecraft_version}-${project.name}"
+    displayName = "${project.mod_id}-${project.version}-26.x-${project.name}"
 
     // We use the project name (e.g. 'fabric', 'neoforge', 'forge') as the loader
     modLoaders.add(project.name)
