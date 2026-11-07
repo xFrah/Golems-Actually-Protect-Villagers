@@ -96,7 +96,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         }
 
         // Throttle scans when idle (default: every 100 ticks / 5 seconds)
-        int scanInterval = Config.DATA != null ? Math.max(1, Config.DATA.idleScanIntervalTicks) : 100;
+        int scanInterval = (Config.DATA != null && Config.DATA.idleScanIntervalTicks > 0) ? Config.DATA.idleScanIntervalTicks : 100;
         if (gameTime - this.lastScanTime < scanInterval) {
             return false;
         }
