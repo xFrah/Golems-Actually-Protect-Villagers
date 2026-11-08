@@ -31,7 +31,7 @@ In vanilla Minecraft, Iron Golems are sooooo bad at protecting villagers. This m
    - Zombie breaking a villager's door (+40)
    - Villager is panicking (+25)
    - Proximity to villagers (closer = higher urgency)
-3. The score is scaled by the actual walking path distance. A zombie 5 blocks away from a villager will always be taken out before one 40 blocks away.
+3. The score is scaled by the actual walking path distance from the golem to the threat. A threat 5 blocks away from the golem will be prioritized over one 40 blocks away.
 4. Golems keep pursuing their target up to 10 blocks past the scan radius, and take a brief 1-second breather after defeating a target before re-scanning.
 
 ## Configuration
