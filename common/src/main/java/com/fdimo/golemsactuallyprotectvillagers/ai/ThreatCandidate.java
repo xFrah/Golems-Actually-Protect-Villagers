@@ -1,6 +1,7 @@
 package com.fdimo.golemsactuallyprotectvillagers.ai;
 
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.pathfinder.Path;
 
 public class ThreatCandidate {
@@ -8,6 +9,7 @@ public class ThreatCandidate {
     private final Mob mob;
     private final double baseUrgency;
     private final double euclideanDist;
+    private Villager imperiledVillager;
     private Path path;
     private boolean reachable = false;
     private int pathDistance = Integer.MAX_VALUE;
@@ -35,6 +37,14 @@ public class ThreatCandidate {
         return this.path;
     }
 
+    public Villager getImperiledVillager() {
+        return this.imperiledVillager;
+    }
+
+    public void setImperiledVillager(Villager imperiledVillager) {
+        this.imperiledVillager = imperiledVillager;
+    }
+
     public boolean isReachable() {
         return this.reachable;
     }
@@ -58,4 +68,3 @@ public class ThreatCandidate {
         this.finalScore = this.baseUrgency / distanceFactor;
     }
 }
-

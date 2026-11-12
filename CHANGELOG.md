@@ -1,2 +1,8 @@
-- Golems only target reachable threats, preventing them from targeting mobs in sealed underground caves
-- Golems now scan every 5 seconds (100 ticks) to improve performance
+- Villagers can call golems through a distress signal
+- Villagers check if mobs have a path to them, before calling for help
+- Golems don't wander into pits or unrecoverable places anymore
+- Golems can bypass these railguards if a villager in danger
+- Golems can leap several blocks down to save villagers (in ravines or canyons)
+- Added speed modifier for golems in pursuit
+- Lowered priority of the async pathfinding thread
+- Increased default max pathfinding nodes
