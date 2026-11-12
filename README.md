@@ -42,7 +42,7 @@ In vanilla Minecraft, Iron Golems are sooooo bad at protecting villagers. This m
 | `idleScanIntervalTicks` | `100` | Interval in ticks between threat scans when a golem is idle (100 ticks = 5 seconds) |
 | `villagerProximityThreatRadius` | `10.0` | Radius around a villager where hostile mobs count as an immediate danger |
 | `singleGolemQueueLimit` | `5` | Maximum threat candidates evaluated per golem in a single async cycle |
-| `maxPathfindingNodes` | `200` | Maximum pathfinding node depth during off-thread A* evaluation |
+| `maxPathfindingNodes` | `1000` | Maximum pathfinding node depth during off-thread A* evaluation |
 | `asyncQueueCapacity` | `1000` | Size of the background pathfinding thread pool queue |
 | `enableChatDebug` | `false` | Shows golem target decisions in chat |
 | `enableDebugLogs` | `false` | Prints extra logs to the server/game console |

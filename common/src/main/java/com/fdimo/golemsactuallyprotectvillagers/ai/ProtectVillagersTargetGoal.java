@@ -18,9 +18,11 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,10 +37,13 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     private volatile boolean isEvaluatingAsync = false;
     private long asyncStartTime = 0;
     private long lastDisengageTime = 0;
+    private boolean running = false;
     private Mob pendingTarget;
     private Path pendingPath;
     private Path precomputedPath;
     private String lastTargetName;
+    private int lastUnreachableEnemyId = -1;
+    private long lastUnreachableTime = 0;
 
     public ProtectVillagersTargetGoal(IronGolem golem) {
         super(golem, false, false); // mustSee = false to prevent door/wall blindness
@@ -62,16 +67,11 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         // 1. If an async evaluation just finished and provided a valid target, adopt it immediately
         if (this.pendingTarget != null) {
             if (this.pendingTarget.isAlive() && !this.pendingTarget.isRemoved() && this.golem.canAttack(this.pendingTarget)) {
-                if (this.pendingTarget.getType() == EntityType.DROWNED && this.pendingTarget.isInWater()) {
-                    this.pendingTarget = null;
-                    this.pendingPath = null;
-                } else {
-                    this.targetMob = this.pendingTarget;
-                    this.precomputedPath = this.pendingPath;
-                    this.pendingTarget = null;
-                    this.pendingPath = null;
-                    return true;
-                }
+                this.targetMob = this.pendingTarget;
+                this.precomputedPath = this.pendingPath;
+                this.pendingTarget = null;
+                this.pendingPath = null;
+                return true;
             } else {
                 this.pendingTarget = null;
                 this.pendingPath = null;
@@ -95,23 +95,29 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             }
         }
 
-        // Throttle scans when idle (default: every 100 ticks / 5 seconds)
-        int scanInterval = (Config.DATA != null && Config.DATA.idleScanIntervalTicks > 0) ? Config.DATA.idleScanIntervalTicks : 100;
-        if (gameTime - this.lastScanTime < scanInterval) {
-            return false;
+        // 3. Fallback periodic scan (only if explicitly enabled in config; disabled by default in favor of distress signals)
+        if (Config.DATA != null && Config.DATA.enablePeriodicGolemScan) {
+            int scanInterval = (Config.DATA.idleScanIntervalTicks > 0) ? Config.DATA.idleScanIntervalTicks : 100;
+            if (gameTime - this.lastScanTime >= scanInterval) {
+                this.lastScanTime = gameTime;
+                this.startAsyncEvaluation(serverLevel);
+            }
         }
-        this.lastScanTime = gameTime;
 
-        // Collect candidates and trigger async pathfinding
-        this.startAsyncEvaluation(serverLevel);
         return false;
     }
 
     @Override
     public boolean canContinueToUse() {
-        if (this.targetMob != null && this.targetMob.getType() == EntityType.DROWNED && this.targetMob.isInWater()) {
+        if (this.targetMob == null || !this.targetMob.isAlive() || this.targetMob.isRemoved()) {
             return false;
         }
+
+        LivingEntity currentTarget = this.golem.getTarget();
+        if (currentTarget == null) {
+            return false;
+        }
+
         return super.canContinueToUse();
     }
 
@@ -120,9 +126,26 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         return Math.max(super.getFollowDistance(), Config.DATA.golemScanRadius + 10.0);
     }
 
+    public boolean isRunning() {
+        return this.running;
+    }
+
+    public Path getPrecomputedPath() {
+        return this.precomputedPath;
+    }
+
+    public void setPrecomputedPath(Path path) {
+        this.precomputedPath = path;
+    }
+
     @Override
     public void start() {
+        this.running = true;
         this.golem.setTarget(this.targetMob);
+
+        if (this.golem instanceof GolemSafeZoneHolder holder) {
+            holder.golemsActuallyProtectVillagers$setRescueFollowRangeBoost(true);
+        }
 
         if (this.targetMob != null) {
             this.lastTargetName = this.targetMob.getName().getString();
@@ -130,7 +153,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
         boolean movingWithPrecomputed = false;
         // If we found a valid reachable path during async evaluation, kick off movement immediately
-        if (this.precomputedPath != null && this.precomputedPath.canReach()) {
+        if (this.precomputedPath != null) {
             this.golem.getNavigation().moveTo(this.precomputedPath, 1.25);
             movingWithPrecomputed = true;
         }
@@ -149,6 +172,10 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
     @Override
     public void stop() {
+        this.running = false;
+        if (this.golem instanceof GolemSafeZoneHolder holder) {
+            holder.golemsActuallyProtectVillagers$setRescueFollowRangeBoost(false);
+        }
         if (this.golem.level() instanceof ServerLevel serverLevel) {
             this.lastDisengageTime = serverLevel.getGameTime();
             if (this.lastTargetName != null) {
@@ -176,9 +203,137 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     @Override
     public void tick() {
         super.tick();
+
         if (Config.DATA.enableQueueDebug && this.golem.level() instanceof ServerLevel serverLevel && this.golem.tickCount % 20 == 0) {
             AsyncGolemPathfinder.printMetrics(serverLevel);
         }
+    }
+
+    public void onDistressSignal(ServerLevel level, Villager villager, Mob enemy) {
+        if (!this.golem.isAlive() || this.golem.isRemoved()) return;
+        if (this.golem.level() != level) return;
+
+        // Vanilla persistence: if the golem already has an active living target, stay committed
+        LivingEntity currentTarget = this.golem.getTarget();
+        if (currentTarget != null && currentTarget.isAlive() && !currentTarget.isRemoved()) {
+            if (currentTarget == enemy) {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: already targeting this threat.",
+                    this.golem.getId(), enemy.getName().getString()));
+            } else {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: already fighting %s.",
+                    this.golem.getId(), enemy.getName().getString(), currentTarget.getName().getString()));
+            }
+            return;
+        }
+
+        long gameTime = level.getGameTime();
+
+        // Debounce after disengaging (1 second)
+        if (gameTime - this.lastDisengageTime < 20) {
+            long remaining = 20 - (gameTime - this.lastDisengageTime);
+            sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: recently disengaged (%d ticks cooldown).",
+                this.golem.getId(), enemy.getName().getString(), remaining));
+            return;
+        }
+
+        // If an async pathfinding job is already running on ASYNC_POOL, wait for it unless timed out
+        if (this.isEvaluatingAsync) {
+            if (gameTime - this.asyncStartTime > 100) {
+                this.isEvaluatingAsync = false;
+            } else {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: already calculating a path off-thread.",
+                    this.golem.getId(), enemy.getName().getString()));
+                return;
+            }
+        }
+
+        // Cooldown on recently evaluated unreachable threats (60 ticks / 3s)
+        if (enemy.getId() == this.lastUnreachableEnemyId && (gameTime - this.lastUnreachableTime < 60)) {
+            long remaining = 60 - (gameTime - this.lastUnreachableTime);
+            sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: recently confirmed unreachable (%d ticks cooldown).",
+                this.golem.getId(), enemy.getName().getString(), remaining));
+            return;
+        }
+
+        if (!this.golem.canAttack(enemy)) {
+            sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: cannot attack target entity.",
+                this.golem.getId(), enemy.getName().getString()));
+            return;
+        }
+
+        double maxRadius = (Config.DATA != null) ? Config.DATA.golemScanRadius : 48.0;
+        if (this.golem.distanceTo(enemy) > maxRadius + 10.0) {
+            sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: threat is out of range (%.1f > %.1f blocks).",
+                this.golem.getId(), enemy.getName().getString(), this.golem.distanceTo(enemy), maxRadius + 10.0));
+            return;
+        }
+
+        // If already in melee attack range, adopt immediately without async pathfinding!
+        if (this.golem.isWithinMeleeAttackRange(enemy)) {
+            this.pendingTarget = enemy;
+            this.pendingPath = null;
+            sendChatDebug(level, String.format("§6[Golem #%d] §aEngaging threat §c%s§a immediately without pathfinding (already in melee range).",
+                this.golem.getId(), enemy.getName().getString()));
+            return;
+        }
+
+        double baseUrgency = this.calculateBaseUrgency(enemy, List.of(villager));
+        if (baseUrgency <= 0.0) {
+            // Distress signal fallback: panicking villager is menaced by an innate threat or hostile mob
+            if (this.isInnateVillagerThreat(enemy) || (enemy.getTarget() instanceof Villager)) {
+                baseUrgency = 40.0;
+            } else {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Ignoring SOS for §c%s§7: threat urgency is 0 (not considered active danger).",
+                    this.golem.getId(), enemy.getName().getString()));
+                return;
+            }
+        }
+
+        ThreatCandidate candidate = new ThreatCandidate(enemy, baseUrgency, this.golem.distanceTo(enemy));
+        candidate.setImperiledVillager(villager);
+
+        this.isEvaluatingAsync = true;
+        this.asyncStartTime = gameTime;
+
+        if (Config.DATA != null && Config.DATA.enableChatDebug) {
+            sendChatDebug(level, String.format("§6[Golem #%d] §eResponding to SOS for §c%s§e near %s. Calculating path...",
+                this.golem.getId(), enemy.getName().getString(), villager.getName().getString()));
+        }
+
+        AsyncGolemPathfinder.evaluateThreatsAsync(this.golem, level, List.of(candidate), evaluated -> {
+            this.isEvaluatingAsync = false;
+
+            LivingEntity current = this.golem.getTarget();
+            if (current != null && current.isAlive() && !current.isRemoved() && current != enemy) {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Discarded path result for §c%s§7: became engaged with %s while evaluating.",
+                    this.golem.getId(), enemy.getName().getString(), current.getName().getString()));
+                return;
+            }
+
+            if (evaluated.isEmpty()) {
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Discarded SOS for §c%s§7: evaluation returned no candidates.",
+                    this.golem.getId(), enemy.getName().getString()));
+                return;
+            }
+            ThreatCandidate best = evaluated.get(0);
+            if (best.isReachable() && best.getFinalScore() > 0.0) {
+                sendChatDebug(level, String.format("§6[Golem #%d] §aSelected threat: §c%s§a (Urgency: %.1f | Path: %d nodes -> Score: %.1f)",
+                    this.golem.getId(),
+                    best.getMob().getName().getString(),
+                    best.getBaseUrgency(),
+                    best.getPathDistance(),
+                    best.getFinalScore()));
+
+                this.pendingTarget = best.getMob();
+                this.pendingPath = best.getPath();
+                this.lastUnreachableEnemyId = -1;
+            } else {
+                this.lastUnreachableEnemyId = enemy.getId();
+                this.lastUnreachableTime = level.getGameTime();
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Cannot reach threat §c%s§7 (unreachable / no valid path from current position).",
+                    this.golem.getId(), enemy.getName().getString()));
+            }
+        });
     }
 
     private void startAsyncEvaluation(ServerLevel level) {
@@ -206,7 +361,23 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             double baseUrgency = this.calculateBaseUrgency(enemy, nearbyVillagers);
             if (baseUrgency > 0.0) {
                 double euclideanDist = this.golem.distanceTo(enemy);
-                candidates.add(new ThreatCandidate(enemy, baseUrgency, euclideanDist));
+                ThreatCandidate candidate = new ThreatCandidate(enemy, baseUrgency, euclideanDist);
+                // Attach the target villager or closest villager so async pathfinding can evaluate if the enemy can reach it
+                Villager imperiledVillager = null;
+                if (enemy.getTarget() instanceof Villager tv && tv.isAlive() && !tv.isRemoved()) {
+                    imperiledVillager = tv;
+                } else {
+                    double closestDistSqr = Double.MAX_VALUE;
+                    for (Villager v : nearbyVillagers) {
+                        double d = v.distanceToSqr(enemy);
+                        if (d < closestDistSqr) {
+                            closestDistSqr = d;
+                            imperiledVillager = v;
+                        }
+                    }
+                }
+                candidate.setImperiledVillager(imperiledVillager);
+                candidates.add(candidate);
             }
         }
 
@@ -244,9 +415,6 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                 if (!candidate.isReachable()) {
                     continue;
                 }
-                if (this.isDrownedPathEndingInWater(level, candidate)) {
-                    continue;
-                }
                 if (candidate.getFinalScore() > highestScore) {
                     highestScore = candidate.getFinalScore();
                     best = candidate;
@@ -266,31 +434,12 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                 this.pendingTarget = best.getMob();
                 this.pendingPath = best.getPath();
             } else if (!evaluated.isEmpty()) {
-                sendChatDebug(level, String.format("§6[Golem #%d] §7Evaluated %d candidate(s), but none qualify as an active danger.",
-                    this.golem.getId(), evaluated.size()));
+                ThreatCandidate first = evaluated.get(0);
+                String reason = !first.isReachable() ? "unreachable / no valid path from current position" : "threat priority too low";
+                sendChatDebug(level, String.format("§6[Golem #%d] §7Evaluated %d candidate(s), but none qualify as an active danger (%s).",
+                    this.golem.getId(), evaluated.size(), reason));
             }
         });
-    }
-
-    private boolean isDrownedPathEndingInWater(ServerLevel level, ThreatCandidate candidate) {
-        if (candidate.getMob().getType() != EntityType.DROWNED) {
-            return false;
-        }
-
-        if (candidate.getMob().isInWater()) {
-            return true;
-        }
-
-        Path path = candidate.getPath();
-        if (path != null && path.getEndNode() != null) {
-            Node endNode = path.getEndNode();
-            BlockPos endPos = new BlockPos(endNode.x, endNode.y, endNode.z);
-            if (level.getFluidState(endPos).is(FluidTags.WATER) || level.getFluidState(endPos.above()).is(FluidTags.WATER)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private boolean isInnateVillagerThreat(Mob mob) {

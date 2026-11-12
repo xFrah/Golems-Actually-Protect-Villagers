@@ -1,10 +1,18 @@
 {
   "villagerProximityThreatRadius": 10.0,
-  "golemScanRadius": 32.0,
+  "golemScanRadius": 48.0,
+  "idleScanIntervalTicks": 100,
   "singleGolemQueueLimit": 5,
-  "maxPathfindingNodes": 200,
+  "maxPathfindingNodes": 1000,
   "asyncQueueCapacity": 1000,
   "enableQueueDebug": false,
-  "enableChatDebug": true,
-  "enableDebugLogs": false
+  "enableChatDebug": false,
+  "enableDebugLogs": false,
+  "showPitFallDebug": false,
+  "showPathDebug": false,
+  "maxFallDistance": 32,
+  "mobPursuitSpeedModifier": 0.2,
+  "enableVillagerDistressSignals": true,
+  "villagerDistressBroadcastIntervalTicks": 40,
+  "enablePeriodicGolemScan": false
 }

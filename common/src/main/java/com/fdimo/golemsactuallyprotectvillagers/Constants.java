@@ -24,6 +24,7 @@ public class Constants {
             r -> {
                 Thread t = new Thread(r, "GolemsActuallyProtectVillagers-Async-" + threadId.getAndIncrement());
                 t.setDaemon(true);
+                t.setPriority(2); // Low priority background worker (below normal, non-starving)
                 return t;
             },
             new ThreadPoolExecutor.DiscardOldestPolicy()

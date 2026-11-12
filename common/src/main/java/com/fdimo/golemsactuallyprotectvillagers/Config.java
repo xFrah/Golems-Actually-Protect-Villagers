@@ -34,7 +34,7 @@ public class Config {
     public int singleGolemQueueLimit = 5;
 
     // Maximum nodes explored during async A* pathfinding
-    public int maxPathfindingNodes = 200;
+    public int maxPathfindingNodes = 1000;
 
     // Capacity of the background thread pool queue (bounded queue with DiscardOldestPolicy)
     public int asyncQueueCapacity = 1000;
@@ -47,6 +47,27 @@ public class Config {
 
     // Enable debug logging
     public boolean enableDebugLogs = false;
+
+    // Show red particles on unrecoverable/dangerous ground (pits, deep water, cliffs) where golems cannot safely go
+    public boolean showPitFallDebug = false;
+
+    // Show blue particles along the active path the golem is walking on
+    public boolean showPathDebug = false;
+
+    // Maximum vertical fall distance allowed when pathfinding to threats (default: 32 blocks)
+    public int maxFallDistance = 32;
+
+    // Movement speed modifier applied to iron golems when pursuing hostile mobs (e.g. 0.20 for +20% speed)
+    public double mobPursuitSpeedModifier = 0.20;
+
+    // Enable event-driven villager distress beacon system (villagers broadcast SOS to nearby golems)
+    public boolean enableVillagerDistressSignals = true;
+
+    // Interval in ticks between distress broadcasts per villager while panicking (40 ticks = 2 seconds)
+    public int villagerDistressBroadcastIntervalTicks = 40;
+
+    // Enable periodic idle scanning by iron golems (fallback, default: false in favor of event-driven distress signals)
+    public boolean enablePeriodicGolemScan = false;
 
     public static void load() {
         Path configPath = CONFIG_FILE.toPath();
@@ -62,6 +83,14 @@ public class Config {
                         needsSave = true;
                     }
 
+                    // Handle legacy config upgrade
+                    if (!json.has("maxFallDistance") && json.has("maxHeroicFallDistance")) {
+                        try {
+                            DATA.maxFallDistance = json.get("maxHeroicFallDistance").getAsInt();
+                        } catch (Exception ignored) {
+                        }
+                    }
+
                     // Detect missing keys (e.g. upgrading from an older version of the mod)
                     if (!json.has("idleScanIntervalTicks")
                         || !json.has("villagerProximityThreatRadius")
@@ -71,11 +100,23 @@ public class Config {
                         || !json.has("asyncQueueCapacity")
                         || !json.has("enableQueueDebug")
                         || !json.has("enableChatDebug")
-                        || !json.has("enableDebugLogs")) {
+                        || !json.has("enableDebugLogs")
+                        || !json.has("showPitFallDebug")
+                        || !json.has("showPathDebug")
+                        || !json.has("maxFallDistance")
+                        || !json.has("mobPursuitSpeedModifier")
+                        || !json.has("enableVillagerDistressSignals")
+                        || !json.has("villagerDistressBroadcastIntervalTicks")
+                        || !json.has("enablePeriodicGolemScan")) {
                         needsSave = true;
                     }
                 } else {
                     DATA = new Config();
+                    needsSave = true;
+                }
+
+                if (DATA.villagerDistressBroadcastIntervalTicks <= 0) {
+                    DATA.villagerDistressBroadcastIntervalTicks = 40;
                     needsSave = true;
                 }
 
@@ -96,11 +137,19 @@ public class Config {
                     needsSave = true;
                 }
                 if (DATA.maxPathfindingNodes <= 0) {
-                    DATA.maxPathfindingNodes = 200;
+                    DATA.maxPathfindingNodes = 1000;
                     needsSave = true;
                 }
                 if (DATA.asyncQueueCapacity <= 0) {
                     DATA.asyncQueueCapacity = 1000;
+                    needsSave = true;
+                }
+                if (DATA.mobPursuitSpeedModifier < 0.0) {
+                    DATA.mobPursuitSpeedModifier = 0.0;
+                    needsSave = true;
+                }
+                if (DATA.maxFallDistance <= 0) {
+                    DATA.maxFallDistance = 32;
                     needsSave = true;
                 }
             } catch (Exception e) {
