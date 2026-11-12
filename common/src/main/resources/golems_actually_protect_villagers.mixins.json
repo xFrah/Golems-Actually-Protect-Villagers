@@ -3,7 +3,12 @@
   "package": "com.fdimo.golemsactuallyprotectvillagers.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "MixinIronGolem"
+    "MixinIronGolem",
+    "MixinMeleeAttackGoal",
+    "MixinNearestAttackableTargetGoal",
+    "MixinVillager",
+    "MixinVillagerPanicTrigger",
+    "MixinWalkNodeEvaluator"
   ],
   "client": [],
   "server": [],
