@@ -24,8 +24,15 @@ public abstract class MixinWalkNodeEvaluator extends NodeEvaluator {
                 return;
             }
 
-            boolean isProtecting = holder.golemsActuallyProtectVillagers$isProtectingVillager()
-                || AsyncGolemPathfinder.EVALUATING_PROTECT_PATH.get();
+            boolean canEnter = holder.golemsActuallyProtectVillagers$canEnterHazard();
+            com.fdimo.golemsactuallyprotectvillagers.ai.ThreatCandidate candidate = AsyncGolemPathfinder.CURRENT_EVALUATING_CANDIDATE.get();
+            if (candidate != null) {
+                net.minecraft.world.entity.npc.villager.Villager villager = candidate.getImperiledVillager();
+                net.minecraft.world.entity.Mob enemy = candidate.getMob();
+                if (villager != null && enemy != null) {
+                    canEnter = !safeZone.isSafe(villager.blockPosition()) && enemy.hasLineOfSight(villager);
+                }
+            }
 
             int count = cir.getReturnValue();
             int validCount = 0;
@@ -37,8 +44,8 @@ public abstract class MixinWalkNodeEvaluator extends NodeEvaluator {
 
                 // 1. Confirmed hazard:
                 if (safeZone.isConfirmedHazard(pos)) {
-                    if (isProtecting && neighbor.costMalus >= 0.0F) {
-                        // Railguards lowered when actively protecting an imperiled villager (+2.0F mild penalty)
+                    if (canEnter && neighbor.costMalus >= 0.0F) {
+                        // Railguards lowered ONLY when imperiled villager is actually trapped down in the hazard (+2.0F mild penalty)
                         neighbor.costMalus += 2.0F;
                         output[validCount++] = neighbor;
                     } else {
