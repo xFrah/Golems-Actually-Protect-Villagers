@@ -61,6 +61,9 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
     @Unique
     private ProtectVillagersTargetGoal protectVillagersGoal;
 
+    @Unique
+    private boolean canEnterHazard = false;
+
     protected MixinIronGolem(EntityType<? extends AbstractGolem> entityType, Level level) {
         super(entityType, level);
     }
@@ -111,6 +114,25 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
         } else if (followRangeAttr.hasModifier(RESCUE_FOLLOW_RANGE_MODIFIER_ID)) {
             followRangeAttr.removeModifier(RESCUE_FOLLOW_RANGE_MODIFIER_ID);
         }
+    }
+
+    @Unique
+    private boolean checkVillagerTrappedWithTarget(LivingEntity target) {
+        if (target == null || !this.safeZone.isTargetInHazard(target)) {
+            return false;
+        }
+        net.minecraft.world.entity.npc.Villager villager = (this.protectVillagersGoal != null) ? this.protectVillagersGoal.getImperiledVillager() : null;
+        if (villager != null && villager.isAlive() && !villager.isRemoved()) {
+            if (!this.safeZone.isSafe(villager.blockPosition()) && target.hasLineOfSight(villager)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean golemsActuallyProtectVillagers$canEnterHazard() {
+        return this.canEnterHazard;
     }
 
     @Override
@@ -184,10 +206,14 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
                 }
             }
 
-            // 4. Combat pursuit guard: if target is in an unrecoverable hazard (pit, ravine, deep water)
-            // and golem is NOT actively protecting a villager:
             boolean isProtecting = this.golemsActuallyProtectVillagers$isProtectingVillager();
-            if (target != null && !isProtecting) {
+            if (golem.tickCount % 5 == 0) {
+                this.canEnterHazard = isProtecting && this.checkVillagerTrappedWithTarget(target);
+            }
+
+            // 4. Combat pursuit guard: if target is in an unrecoverable hazard (pit, ravine, deep water)
+            // and hazard entry is NOT allowed (villager is safe or not trapped with the mob):
+            if (target != null && !this.canEnterHazard) {
                 boolean isAttacker = (target == golem.getLastHurtByMob()
                         && golem.tickCount - golem.getLastHurtByMobTimestamp() <= 100);
                 if (!isAttacker && this.safeZone.isTargetInHazard(target)) {
@@ -204,7 +230,7 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
 
             // 5. Rim attack anchor: if target is in a hazard and golem can hit it from safe ground,
             // STOP forward navigation and clear horizontal velocity so it hits from the rim without falling in!
-            if (target != null && !isProtecting && this.safeZone.isTargetInHazard(target)) {
+            if (target != null && !this.canEnterHazard && this.safeZone.isTargetInHazard(target)) {
                 if (golem.isWithinMeleeAttackRange(target)) {
                     golem.getNavigation().stop();
                     Vec3 delta = golem.getDeltaMovement();

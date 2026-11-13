@@ -12,4 +12,8 @@ public interface GolemSafeZoneHolder {
     }
 
     default void golemsActuallyProtectVillagers$setRescueFollowRangeBoost(boolean enabled) {}
+
+    default boolean golemsActuallyProtectVillagers$canEnterHazard() {
+        return false;
+    }
 }

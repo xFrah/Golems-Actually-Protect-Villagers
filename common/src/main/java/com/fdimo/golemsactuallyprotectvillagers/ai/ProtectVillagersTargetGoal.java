@@ -40,7 +40,9 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     private boolean running = false;
     private Mob pendingTarget;
     private Path pendingPath;
+    private Villager pendingVillager;
     private Path precomputedPath;
+    private Villager imperiledVillager;
     private String lastTargetName;
     private int lastUnreachableEnemyId = -1;
     private long lastUnreachableTime = 0;
@@ -69,12 +71,15 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
             if (this.pendingTarget.isAlive() && !this.pendingTarget.isRemoved() && this.golem.canAttack(this.pendingTarget)) {
                 this.targetMob = this.pendingTarget;
                 this.precomputedPath = this.pendingPath;
+                this.imperiledVillager = this.pendingVillager;
                 this.pendingTarget = null;
                 this.pendingPath = null;
+                this.pendingVillager = null;
                 return true;
             } else {
                 this.pendingTarget = null;
                 this.pendingPath = null;
+                this.pendingVillager = null;
             }
         }
 
@@ -138,6 +143,10 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         this.precomputedPath = path;
     }
 
+    public Villager getImperiledVillager() {
+        return this.imperiledVillager;
+    }
+
     @Override
     public void start() {
         this.running = true;
@@ -187,6 +196,8 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
         this.precomputedPath = null;
         this.pendingTarget = null;
         this.pendingPath = null;
+        this.pendingVillager = null;
+        this.imperiledVillager = null;
         super.stop();
     }
 
@@ -326,6 +337,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
                 this.pendingTarget = best.getMob();
                 this.pendingPath = best.getPath();
+                this.pendingVillager = best.getImperiledVillager();
                 this.lastUnreachableEnemyId = -1;
             } else {
                 this.lastUnreachableEnemyId = enemy.getId();
@@ -433,6 +445,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
                 // will call start() which sets the target and kicks off navigation cleanly
                 this.pendingTarget = best.getMob();
                 this.pendingPath = best.getPath();
+                this.pendingVillager = best.getImperiledVillager();
             } else if (!evaluated.isEmpty()) {
                 ThreatCandidate first = evaluated.get(0);
                 String reason = !first.isReachable() ? "unreachable / no valid path from current position" : "threat priority too low";

@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 public class AsyncGolemPathfinder {
 
     public static final ThreadLocal<Boolean> EVALUATING_PROTECT_PATH = ThreadLocal.withInitial(() -> false);
+    public static final ThreadLocal<ThreatCandidate> CURRENT_EVALUATING_CANDIDATE = new ThreadLocal<>();
     public static final AtomicInteger executedPathfindings = new AtomicInteger(0);
     public static final AtomicInteger newPathfindings = new AtomicInteger(0);
     private static long lastPrintTime = 0;
@@ -83,9 +84,11 @@ public class AsyncGolemPathfinder {
                     BlockPos targetPos = candidate.getMob().blockPosition();
                     Path path;
                     EVALUATING_PROTECT_PATH.set(true);
+                    CURRENT_EVALUATING_CANDIDATE.set(candidate);
                     try {
                         path = pathFinder.findPath(region, golem, Set.of(targetPos), maxPathDistance, 1, 1.0F);
                     } finally {
+                        CURRENT_EVALUATING_CANDIDATE.remove();
                         EVALUATING_PROTECT_PATH.set(false);
                     }
 

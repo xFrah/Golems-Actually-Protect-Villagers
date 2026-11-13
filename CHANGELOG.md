@@ -1,8 +1,1 @@
-- Villagers can call golems through a distress signal
-- Villagers check if mobs have a path to them, before calling for help
-- Golems don't wander into pits or unrecoverable places anymore
-- Golems can bypass these railguards if a villager in danger
-- Golems can leap several blocks down to save villagers (in ravines or canyons)
-- Added speed modifier for golems in pursuit
-- Lowered priority of the async pathfinding thread
-- Increased default max pathfinding nodes
+- Golems check if villagers are still inside the danger zone before leaping in
