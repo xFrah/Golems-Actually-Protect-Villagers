@@ -30,6 +30,8 @@ import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -40,12 +42,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZoneHolder {
 
     @Unique
-    private static final ResourceLocation PURSUIT_SPEED_MODIFIER_ID = ResourceLocation
-            .fromNamespaceAndPath(Constants.MOD_ID, "mob_pursuit_speed_boost");
+    private static final UUID PURSUIT_SPEED_MODIFIER_UUID = UUID
+            .nameUUIDFromBytes("golems_actually_protect_villagers:mob_pursuit_speed_boost".getBytes(StandardCharsets.UTF_8));
 
     @Unique
-    private static final ResourceLocation RESCUE_FOLLOW_RANGE_MODIFIER_ID = ResourceLocation
-            .fromNamespaceAndPath(Constants.MOD_ID, "rescue_follow_range_boost");
+    private static final UUID RESCUE_FOLLOW_RANGE_MODIFIER_UUID = UUID
+            .nameUUIDFromBytes("golems_actually_protect_villagers:rescue_follow_range_boost".getBytes(StandardCharsets.UTF_8));
 
     @Unique
     private static final DustParticleOptions BLUE_PATH_DUST = new DustParticleOptions(
@@ -104,15 +106,19 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
         if (enabled) {
             double targetRange = (Config.DATA != null ? Config.DATA.golemScanRadius : 48.0) + 16.0;
             double boost = Math.max(0.0, targetRange - followRangeAttr.getBaseValue());
-            AttributeModifier modifier = followRangeAttr.getModifier(RESCUE_FOLLOW_RANGE_MODIFIER_ID);
-            if (modifier == null || modifier.amount() != boost) {
-                followRangeAttr.addOrUpdateTransientModifier(new AttributeModifier(
-                        RESCUE_FOLLOW_RANGE_MODIFIER_ID,
+            AttributeModifier modifier = followRangeAttr.getModifier(RESCUE_FOLLOW_RANGE_MODIFIER_UUID);
+            if (modifier == null || modifier.getAmount() != boost) {
+                if (modifier != null) {
+                    followRangeAttr.removeModifier(RESCUE_FOLLOW_RANGE_MODIFIER_UUID);
+                }
+                followRangeAttr.addTransientModifier(new AttributeModifier(
+                        RESCUE_FOLLOW_RANGE_MODIFIER_UUID,
+                        "rescue_follow_range_boost",
                         boost,
-                        AttributeModifier.Operation.ADD_VALUE));
+                        AttributeModifier.Operation.ADDITION));
             }
-        } else if (followRangeAttr.hasModifier(RESCUE_FOLLOW_RANGE_MODIFIER_ID)) {
-            followRangeAttr.removeModifier(RESCUE_FOLLOW_RANGE_MODIFIER_ID);
+        } else if (followRangeAttr.getModifier(RESCUE_FOLLOW_RANGE_MODIFIER_UUID) != null) {
+            followRangeAttr.removeModifier(RESCUE_FOLLOW_RANGE_MODIFIER_UUID);
         }
     }
 
@@ -144,22 +150,6 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
                 ? Config.DATA.maxFallDistance : 32;
         }
         return super.getMaxFallDistance();
-    }
-
-    @Override
-    protected AABB getAttackBoundingBox() {
-        AABB aabb = super.getAttackBoundingBox();
-        // Slight reach buffer:
-        // - Reach downwards 0.25 blocks below feet (vanilla is 0.0)
-        // - Slight horizontal buffer of +0.25 blocks beyond vanilla reach
-        return new AABB(
-            aabb.minX - 0.25,
-            aabb.minY - 0.25,
-            aabb.minZ - 0.25,
-            aabb.maxX + 0.25,
-            aabb.maxY,
-            aabb.maxZ + 0.25
-        );
     }
 
     @Inject(method = "aiStep", at = @At("TAIL"))
@@ -247,15 +237,19 @@ public abstract class MixinIronGolem extends AbstractGolem implements GolemSafeZ
                 LivingEntity currentTarget = golem.getTarget();
                 if (currentTarget instanceof Mob && !(currentTarget instanceof Player) && currentTarget.isAlive()
                         && !currentTarget.isRemoved() && Config.DATA.mobPursuitSpeedModifier > 0.0) {
-                    AttributeModifier modifier = speedAttr.getModifier(PURSUIT_SPEED_MODIFIER_ID);
-                    if (modifier == null || modifier.amount() != Config.DATA.mobPursuitSpeedModifier) {
-                        speedAttr.addOrUpdateTransientModifier(new AttributeModifier(
-                                PURSUIT_SPEED_MODIFIER_ID,
+                    AttributeModifier modifier = speedAttr.getModifier(PURSUIT_SPEED_MODIFIER_UUID);
+                    if (modifier == null || modifier.getAmount() != Config.DATA.mobPursuitSpeedModifier) {
+                        if (modifier != null) {
+                            speedAttr.removeModifier(PURSUIT_SPEED_MODIFIER_UUID);
+                        }
+                        speedAttr.addTransientModifier(new AttributeModifier(
+                                PURSUIT_SPEED_MODIFIER_UUID,
+                                "mob_pursuit_speed_boost",
                                 Config.DATA.mobPursuitSpeedModifier,
-                                AttributeModifier.Operation.ADD_MULTIPLIED_BASE));
+                                AttributeModifier.Operation.MULTIPLY_BASE));
                     }
-                } else if (speedAttr.hasModifier(PURSUIT_SPEED_MODIFIER_ID)) {
-                    speedAttr.removeModifier(PURSUIT_SPEED_MODIFIER_ID);
+                } else if (speedAttr.getModifier(PURSUIT_SPEED_MODIFIER_UUID) != null) {
+                    speedAttr.removeModifier(PURSUIT_SPEED_MODIFIER_UUID);
                 }
             }
 
