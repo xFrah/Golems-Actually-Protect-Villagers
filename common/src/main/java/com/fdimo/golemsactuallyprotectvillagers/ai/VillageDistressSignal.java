@@ -6,11 +6,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Phantom;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.PathNavigationRegion;
@@ -136,7 +138,7 @@ public class VillageDistressSignal {
         if (villager.getBrain().getMemory(MemoryModuleType.HURT_BY_ENTITY).orElse(null) == attacker) {
             return true;
         }
-        return attacker.getType() == EntityType.VEX || attacker.getType() == EntityType.PHANTOM || attacker.isNoGravity();
+        return attacker instanceof Vex || attacker instanceof Phantom || attacker.isNoGravity();
     }
 
     public static void broadcast(ServerLevel level, Villager villager, Mob attacker) {
@@ -153,7 +155,7 @@ public class VillageDistressSignal {
         if (attacker == null || !attacker.isAlive() || attacker.isRemoved()) {
             return;
         }
-        if (attacker instanceof IronGolem || attacker.getType() == EntityType.CREEPER) {
+        if (attacker instanceof IronGolem || attacker instanceof Creeper) {
             return;
         }
 
@@ -254,7 +256,7 @@ public class VillageDistressSignal {
             && mob.isAlive()
             && !mob.isRemoved()
             && !(mob instanceof IronGolem)
-            && mob.getType() != EntityType.CREEPER;
+            && !(mob instanceof Creeper);
     }
 }
 
