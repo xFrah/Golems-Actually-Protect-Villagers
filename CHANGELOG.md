@@ -1,1 +1,2 @@
 - Golems check if villagers are still inside the danger zone before leaping in
+- Fixed crashes in certain versions
