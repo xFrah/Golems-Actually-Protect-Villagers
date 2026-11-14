@@ -8,14 +8,16 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.target.TargetGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.monster.Vex;
+import net.minecraft.world.entity.monster.Zoglin;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.Level;
@@ -359,7 +361,7 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
 
         List<Mob> nearbyEnemies = level.getEntitiesOfClass(Mob.class, scanArea, mob -> {
             if (!mob.isAlive() || mob.isRemoved()) return false;
-            if (mob.getType() == EntityTypes.CREEPER) return false;
+            if (mob instanceof Creeper) return false;
             if (!((mob instanceof Enemy) || mob.is(EntityTypeTags.RAIDERS))) return false;
             return this.golem.canAttack(mob);
         });
@@ -458,8 +460,8 @@ public class ProtectVillagersTargetGoal extends TargetGoal {
     private boolean isInnateVillagerThreat(Mob mob) {
         return (mob instanceof Zombie)
             || mob.is(EntityTypeTags.RAIDERS)
-            || mob.getType() == EntityTypes.VEX
-            || mob.getType() == EntityTypes.ZOGLIN;
+            || (mob instanceof Vex)
+            || (mob instanceof Zoglin);
     }
 
     private double calculateBaseUrgency(Mob enemy, List<Villager> villagers) {
