@@ -16,4 +16,22 @@ public interface GolemSafeZoneHolder {
     default boolean golemsActuallyProtectVillagers$canEnterHazard() {
         return false;
     }
+
+    default boolean golemsActuallyProtectVillagers$canClimbLedge() {
+        return false;
+    }
+
+    default boolean golemsActuallyProtectVillagers$isMantling() {
+        return false;
+    }
+
+    default float golemsActuallyProtectVillagers$getMantleArmAngle(float partialTick) {
+        return 0.0F;
+    }
+
+    default void golemsActuallyProtectVillagers$resetLerpSteps() {}
+
+    default boolean golemsActuallyProtectVillagers$isPursuingThreat() {
+        return false;
+    }
 }
