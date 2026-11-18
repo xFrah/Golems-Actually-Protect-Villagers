@@ -1,2 +1,4 @@
 - Iron Golems can now climb up 2 blocks, complete with new animation.
 - Added config option to adjust the speed of the climbing animation.
+- Golems have red eyes when pursuing a target.
+- Added config option to enable/disable the red eyes.
