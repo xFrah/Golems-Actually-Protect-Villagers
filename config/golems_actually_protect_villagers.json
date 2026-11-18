@@ -1,8 +1,6 @@
 {
   "villagerProximityThreatRadius": 10.0,
   "golemScanRadius": 48.0,
-  "idleScanIntervalTicks": 100,
-  "singleGolemQueueLimit": 5,
   "maxPathfindingNodes": 1000,
   "asyncQueueCapacity": 1000,
   "enableQueueDebug": false,
@@ -14,5 +12,10 @@
   "mobPursuitSpeedModifier": 0.2,
   "enableVillagerDistressSignals": true,
   "villagerDistressBroadcastIntervalTicks": 40,
-  "enablePeriodicGolemScan": false
+  "enableLedgeClimb": true,
+  "maxClimbHeight": 2.0,
+  "ledgeClimbSpeed": 0.35,
+  "climbMalus": 5.0,
+  "fenceProximityMalus": 2.5,
+  "enableRedPursuitEyes": true
 }
