@@ -3,9 +3,7 @@ package com.fdimo.golemsactuallyprotectvillagers.ai;
 import com.fdimo.golemsactuallyprotectvillagers.Config;
 import com.fdimo.golemsactuallyprotectvillagers.Constants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -22,7 +20,6 @@ import net.minecraft.world.level.pathfinder.PathFinder;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 import net.minecraft.world.phys.AABB;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -64,18 +61,10 @@ public class VillageDistressSignal {
         BlockPos vPos = villager.blockPosition();
         BlockPos aPos = threat.blockPosition();
 
-        int minX = Math.min(vPos.getX(), aPos.getX()) - 8;
-        int maxX = Math.max(vPos.getX(), aPos.getX()) + 8;
-        int minY = Math.min(vPos.getY(), aPos.getY()) - 8;
-        int maxY = Math.max(vPos.getY(), aPos.getY()) + 8;
-        int minZ = Math.min(vPos.getZ(), aPos.getZ()) - 8;
-        int maxZ = Math.max(vPos.getZ(), aPos.getZ()) + 8;
-
-        PathNavigationRegion region = new PathNavigationRegion(
-            level,
-            new BlockPos(minX, minY, minZ),
-            new BlockPos(maxX, maxY, maxZ)
-        );
+        PathNavigationRegion region = AsyncGolemPathfinder.createRegionSnapshot(level, vPos, aPos, 8, 32, 16);
+        if (region == null) {
+            return;
+        }
 
         CompletableFuture.runAsync(() -> {
             try {
@@ -113,10 +102,10 @@ public class VillageDistressSignal {
                             emitter.golemsActuallyProtectVillagers$setLastDistressTime(level.getGameTime());
                             emitter.golemsActuallyProtectVillagers$setLastAttackerId(threat.getId());
                         }
-                        sendChatDebug(level, String.format(
+                        DebugChat.send(level,
                             "§a[Villager #%d] §7Suppressed SOS: threat §c%s§7 at [%d, %d, %d] cannot pathfind to me (trapped/obstructed).",
                             villager.getId(), threat.getName().getString(), aPos.getX(), aPos.getY(), aPos.getZ()
-                        ));
+                        );
                     }
                 });
             } catch (Exception e) {
@@ -183,17 +172,17 @@ public class VillageDistressSignal {
 
         BlockPos pos = villager.blockPosition();
         if (golems.isEmpty()) {
-            sendChatDebug(level, String.format(
+            DebugChat.send(level,
                 "§a[Villager #%d] §eSent SOS for §c%s§e at [%d, %d, %d] §7(no golems in range).",
                 villager.getId(), attacker.getName().getString(), pos.getX(), pos.getY(), pos.getZ()
-            ));
+            );
             return;
         }
 
-        sendChatDebug(level, String.format(
+        DebugChat.send(level,
             "§a[Villager #%d] §eSent SOS for §c%s§e at [%d, %d, %d] §7(%d golem(s) in range).",
             villager.getId(), attacker.getName().getString(), pos.getX(), pos.getY(), pos.getZ(), golems.size()
-        ));
+        );
 
         for (IronGolem golem : golems) {
             if (golem instanceof GolemSafeZoneHolder holder) {
@@ -202,16 +191,6 @@ public class VillageDistressSignal {
                     goal.onDistressSignal(level, villager, attacker);
                 }
             }
-        }
-    }
-
-    private static void sendChatDebug(ServerLevel serverLevel, String message) {
-        if (Config.DATA == null || !Config.DATA.enableChatDebug) {
-            return;
-        }
-        Component comp = Component.literal(message);
-        for (ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
-            player.sendSystemMessage(comp);
         }
     }
 
@@ -259,4 +238,3 @@ public class VillageDistressSignal {
             && !(mob instanceof Creeper);
     }
 }
-

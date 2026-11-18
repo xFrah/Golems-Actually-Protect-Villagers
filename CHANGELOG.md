@@ -1,2 +1,2 @@
-- Golems check if villagers are still inside the danger zone before leaping in
-- Fixed crashes in certain versions
+- Iron Golems can now climb up 2 blocks, complete with new animation.
+- Added config option to adjust the speed of the climbing animation.

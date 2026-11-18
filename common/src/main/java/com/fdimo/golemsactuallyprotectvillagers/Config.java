@@ -27,12 +27,6 @@ public class Config {
     // Radius around golems to scan for threats and villagers
     public double golemScanRadius = 48.0;
 
-    // Interval in ticks between threat scans when a golem is idle (100 ticks = 5 seconds)
-    public int idleScanIntervalTicks = 100;
-
-    // Maximum number of candidates evaluated per golem in a single async evaluation
-    public int singleGolemQueueLimit = 5;
-
     // Maximum nodes explored during async A* pathfinding
     public int maxPathfindingNodes = 1000;
 
@@ -66,8 +60,25 @@ public class Config {
     // Interval in ticks between distress broadcasts per villager while panicking (40 ticks = 2 seconds)
     public int villagerDistressBroadcastIntervalTicks = 40;
 
-    // Enable periodic idle scanning by iron golems (fallback, default: false in favor of event-driven distress signals)
-    public boolean enablePeriodicGolemScan = false;
+    // Enable iron golems climbing/mantling up 2-block ledges and obstacles when pursuing threats or rescuing villagers
+    public boolean enableLedgeClimb = true;
+
+    // Maximum height in blocks an iron golem can climb/mantle (default: 2.0 blocks)
+    public double maxClimbHeight = 2.0;
+
+    // Speed multiplier for iron golem ledge climbing/mantling animation (default: 0.35F, lower is slower, higher is faster)
+    public float ledgeClimbSpeed = 0.35F;
+
+    // Cost penalty (malus) added to path nodes that require climbing up ledges, fences, or walls (default: 5.0F).
+    // Discourages climbing when flat ground or open gates exist, but still allows climbing when necessary.
+    public float climbMalus = 5.0F;
+
+    // Cost penalty (malus) added to path nodes immediately adjacent to fences or walls (default: 2.5F).
+    // Steers the 1.4-block-wide iron golem away from fence lines to prevent snagging its hitbox when open space exists.
+    public float fenceProximityMalus = 2.5F;
+
+    // Enable glowing red eyes on iron golems when pursuing threats or protecting villagers
+    public boolean enableRedPursuitEyes = true;
 
     public static void load() {
         Path configPath = CONFIG_FILE.toPath();
@@ -92,10 +103,8 @@ public class Config {
                     }
 
                     // Detect missing keys (e.g. upgrading from an older version of the mod)
-                    if (!json.has("idleScanIntervalTicks")
-                        || !json.has("villagerProximityThreatRadius")
+                    if (!json.has("villagerProximityThreatRadius")
                         || !json.has("golemScanRadius")
-                        || !json.has("singleGolemQueueLimit")
                         || !json.has("maxPathfindingNodes")
                         || !json.has("asyncQueueCapacity")
                         || !json.has("enableQueueDebug")
@@ -107,7 +116,12 @@ public class Config {
                         || !json.has("mobPursuitSpeedModifier")
                         || !json.has("enableVillagerDistressSignals")
                         || !json.has("villagerDistressBroadcastIntervalTicks")
-                        || !json.has("enablePeriodicGolemScan")) {
+                        || !json.has("enableLedgeClimb")
+                        || !json.has("maxClimbHeight")
+                        || !json.has("ledgeClimbSpeed")
+                        || !json.has("climbMalus")
+                        || !json.has("fenceProximityMalus")
+                        || !json.has("enableRedPursuitEyes")) {
                         needsSave = true;
                     }
                 } else {
@@ -120,20 +134,12 @@ public class Config {
                     needsSave = true;
                 }
 
-                if (DATA.idleScanIntervalTicks <= 0) {
-                    DATA.idleScanIntervalTicks = 100;
-                    needsSave = true;
-                }
                 if (DATA.golemScanRadius <= 0) {
                     DATA.golemScanRadius = 48.0;
                     needsSave = true;
                 }
                 if (DATA.villagerProximityThreatRadius <= 0) {
                     DATA.villagerProximityThreatRadius = 10.0;
-                    needsSave = true;
-                }
-                if (DATA.singleGolemQueueLimit <= 0) {
-                    DATA.singleGolemQueueLimit = 5;
                     needsSave = true;
                 }
                 if (DATA.maxPathfindingNodes <= 0) {
@@ -150,6 +156,14 @@ public class Config {
                 }
                 if (DATA.maxFallDistance <= 0) {
                     DATA.maxFallDistance = 32;
+                    needsSave = true;
+                }
+                if (DATA.ledgeClimbSpeed <= 0.0F) {
+                    DATA.ledgeClimbSpeed = 0.35F;
+                    needsSave = true;
+                }
+                if (DATA.climbMalus < 0.0F) {
+                    DATA.climbMalus = 5.0F;
                     needsSave = true;
                 }
             } catch (Exception e) {
