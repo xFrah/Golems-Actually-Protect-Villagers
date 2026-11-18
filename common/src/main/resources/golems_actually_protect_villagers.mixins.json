@@ -6,11 +6,15 @@
     "MixinIronGolem",
     "MixinMeleeAttackGoal",
     "MixinNearestAttackableTargetGoal",
+    "MixinPathNavigation",
     "MixinVillager",
     "MixinVillagerPanicTrigger",
     "MixinWalkNodeEvaluator"
   ],
-  "client": [],
+  "client": [
+    "client.MixinIronGolemModel",
+    "client.MixinIronGolemRenderer"
+  ],
   "server": [],
   "injectors": {
     "defaultRequire": 1

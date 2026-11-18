@@ -3,6 +3,7 @@ package com.fdimo.golemsactuallyprotectvillagers.ai;
 import com.fdimo.golemsactuallyprotectvillagers.Config;
 import com.fdimo.golemsactuallyprotectvillagers.Constants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -14,7 +15,6 @@ import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathFinder;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,9 +41,9 @@ public class AsyncGolemPathfinder {
             float newlyAddedPerSec = newlyAdded / 5.0f;
 
             if (Config.DATA.enableQueueDebug) {
-                String msg = String.format("[Golems Async] Queue: %d/%d | New/sec: %.1f | Executed/sec: %.1f",
+                String msg = String.format("§e[Golems Async] Queue: %d/%d | New/sec: %.1f | Executed/sec: %.1f",
                     pending, Config.DATA.asyncQueueCapacity, newlyAddedPerSec, executedPerSec);
-                net.minecraft.network.chat.Component comp = net.minecraft.network.chat.Component.literal("§e" + msg);
+                Component comp = Component.literal(msg);
                 for (ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
                     player.sendSystemMessage(comp);
                 }
@@ -51,99 +51,120 @@ public class AsyncGolemPathfinder {
         }
     }
 
-    public static void evaluateThreatsAsync(IronGolem golem, ServerLevel serverLevel, List<ThreatCandidate> candidates, Consumer<List<ThreatCandidate>> callback) {
-        if (candidates.isEmpty() || golem.isRemoved() || !golem.isAlive()) {
-            callback.accept(List.of());
+    /**
+     * Safely constructs a PathNavigationRegion spanning two points with padding, clamped to world build bounds.
+     * Returns null if chunks within the region are not loaded.
+     */
+    public static PathNavigationRegion createRegionSnapshot(
+            ServerLevel level, BlockPos from, BlockPos to, int padding, int maxHorizontalRange, int verticalRange) {
+        int minX = Math.min(from.getX(), to.getX());
+        int maxX = Math.max(from.getX(), to.getX());
+        int minY = Math.min(from.getY(), to.getY());
+        int maxY = Math.max(from.getY(), to.getY());
+        int minZ = Math.min(from.getZ(), to.getZ());
+        int maxZ = Math.max(from.getZ(), to.getZ());
+
+        int clampedMinX = Math.max(from.getX() - maxHorizontalRange, minX - padding);
+        int clampedMaxX = Math.min(from.getX() + maxHorizontalRange, maxX + padding);
+        int clampedMinY = Math.max(level.getMinBuildHeight(), Math.max(from.getY() - verticalRange, minY - padding));
+        int clampedMaxY = Math.min(level.getMaxBuildHeight(), Math.min(from.getY() + verticalRange, maxY + padding));
+        int clampedMinZ = Math.max(from.getZ() - maxHorizontalRange, minZ - padding);
+        int clampedMaxZ = Math.min(from.getZ() + maxHorizontalRange, maxZ + padding);
+
+        BlockPos minPos = new BlockPos(clampedMinX, clampedMinY, clampedMinZ);
+        BlockPos maxPos = new BlockPos(clampedMaxX, clampedMaxY, clampedMaxZ);
+
+        if (!level.hasChunksAt(minPos, maxPos)) {
+            return null;
+        }
+
+        return new PathNavigationRegion(level, minPos, maxPos);
+    }
+
+    public static void evaluateThreatAsync(IronGolem golem, ServerLevel serverLevel, ThreatCandidate candidate, Consumer<ThreatCandidate> callback) {
+        if (candidate == null || golem.isRemoved() || !golem.isAlive()) {
+            callback.accept(null);
+            return;
+        }
+
+        Mob threat = candidate.getMob();
+        if (!threat.isAlive() || threat.isRemoved()) {
+            callback.accept(null);
             return;
         }
 
         BlockPos golemPos = golem.blockPosition();
-        int range = (int) (Config.DATA.golemScanRadius * 1.5);
-        PathNavigationRegion region = new PathNavigationRegion(
-            serverLevel,
-            golemPos.offset(-range, -range, -range),
-            golemPos.offset(range, range, range)
-        );
+        BlockPos threatPos = threat.blockPosition();
 
-        newPathfindings.addAndGet(candidates.size());
+        int maxRange = (int) Config.DATA.golemScanRadius;
+        PathNavigationRegion region = createRegionSnapshot(serverLevel, golemPos, threatPos, 16, maxRange, 32);
+        if (region == null) {
+            callback.accept(null);
+            return;
+        }
+
+        newPathfindings.incrementAndGet();
 
         CompletableFuture.runAsync(() -> {
             try {
+                executedPathfindings.incrementAndGet();
+
+                if (!threat.isAlive() || threat.isRemoved()) {
+                    serverLevel.getServer().execute(() -> callback.accept(null));
+                    return;
+                }
+
                 WalkNodeEvaluator nodeEvaluator = new WalkNodeEvaluator();
                 nodeEvaluator.setCanPassDoors(true);
                 PathFinder pathFinder = new PathFinder(nodeEvaluator, Config.DATA.maxPathfindingNodes);
                 float maxPathDistance = (float) (Config.DATA.golemScanRadius * 2.0F);
 
-                for (ThreatCandidate candidate : candidates) {
-                    executedPathfindings.incrementAndGet();
+                Path path;
+                EVALUATING_PROTECT_PATH.set(true);
+                CURRENT_EVALUATING_CANDIDATE.set(candidate);
+                try {
+                    path = pathFinder.findPath(region, golem, Set.of(threatPos), maxPathDistance, 1, 1.0F);
+                } finally {
+                    CURRENT_EVALUATING_CANDIDATE.remove();
+                    EVALUATING_PROTECT_PATH.set(false);
+                }
 
-                    if (!candidate.getMob().isAlive() || candidate.getMob().isRemoved()) {
-                        continue;
+                boolean forwardReachable = (path != null && path.canReach());
+                boolean shoreAttackReachable = false;
+                if (path != null && !forwardReachable && path.getEndNode() != null) {
+                    Node endNode = path.getEndNode();
+                    BlockPos endPos = endNode.asBlockPos();
+                    double distSqr = endPos.distSqr(threatPos);
+                    // If path ends in melee attack range (~3.5 blocks)
+                    if (distSqr <= 12.25) {
+                        shoreAttackReachable = true;
                     }
+                }
 
-                    BlockPos targetPos = candidate.getMob().blockPosition();
-                    Path path;
-                    EVALUATING_PROTECT_PATH.set(true);
-                    CURRENT_EVALUATING_CANDIDATE.set(candidate);
-                    try {
-                        path = pathFinder.findPath(region, golem, Set.of(targetPos), maxPathDistance, 1, 1.0F);
-                    } finally {
-                        CURRENT_EVALUATING_CANDIDATE.remove();
-                        EVALUATING_PROTECT_PATH.set(false);
-                    }
+                boolean isReachable = (forwardReachable || shoreAttackReachable) && !isDeadlyLavaOrVoid(region, threatPos);
+                int nodeCount = (path != null) ? path.getNodeCount() : 0;
+                candidate.setPathResult(path, isReachable, nodeCount);
 
-                    boolean forwardReachable = (path != null && path.canReach());
-                    boolean shoreAttackReachable = false;
-                    if (path != null && !forwardReachable && path.getEndNode() != null) {
-                        Node endNode = path.getEndNode();
-                        BlockPos endPos = endNode.asBlockPos();
-                        double distSqr = endPos.distSqr(targetPos);
-                        // If path ends in melee attack range (~3.5 blocks)
-                        if (distSqr <= 12.25) {
-                            shoreAttackReachable = true;
-                        }
-                    }
-
-                    boolean isReachable = (forwardReachable || shoreAttackReachable) && !isDeadlyLavaOrVoid(region, targetPos);
-
-                    if (isReachable) {
-                        int nodeCount = Math.max(1, path.getNodeCount());
-                        candidate.setPathResult(path, true, nodeCount);
-                    } else if (path != null) {
-                        // Incomplete / partially obstructed path
-                        int nodeCount = path.getNodeCount() + 25;
-                        candidate.setPathResult(path, false, nodeCount);
-                    } else {
-                        // Completely unpathable
-                        int nodeCount = (int) (candidate.getEuclideanDist() * 2.0) + 40;
-                        candidate.setPathResult(null, false, nodeCount);
-                    }
-
-                    if (Config.DATA.enableChatDebug) {
-                        final boolean finalReachable = isReachable;
-                        final double endDist = (path != null && path.getEndNode() != null)
-                            ? Math.sqrt(path.getEndNode().asBlockPos().distSqr(targetPos)) : -1.0;
-                        serverLevel.getServer().execute(() -> {
-                            String msg = String.format("§6[Golem #%d] §7Path eval for §c%s§7: reachable=%b (dist=%.1f)",
-                                golem.getId(), candidate.getMob().getName().getString(), finalReachable, endDist);
-                            net.minecraft.network.chat.Component comp = net.minecraft.network.chat.Component.literal(msg);
-                            for (net.minecraft.server.level.ServerPlayer player : serverLevel.getServer().getPlayerList().getPlayers()) {
-                                player.sendSystemMessage(comp);
-                            }
-                        });
-                    }
+                if (Config.DATA.enableChatDebug) {
+                    final boolean finalReachable = isReachable;
+                    final double endDist = (path != null && path.getEndNode() != null)
+                        ? Math.sqrt(path.getEndNode().asBlockPos().distSqr(threatPos)) : -1.0;
+                    serverLevel.getServer().execute(() -> {
+                        DebugChat.send(serverLevel, "§6[Golem #%d] §7Path eval for §c%s§7: reachable=%b (dist=%.1f)",
+                            golem.getId(), threat.getName().getString(), finalReachable, endDist);
+                    });
                 }
 
                 serverLevel.getServer().execute(() -> {
                     if (!golem.isRemoved() && golem.isAlive()) {
-                        callback.accept(candidates);
+                        callback.accept(candidate);
                     } else {
-                        callback.accept(List.of());
+                        callback.accept(null);
                     }
                 });
             } catch (Exception e) {
                 Constants.LOG.error("Async golem pathfinding error", e);
-                serverLevel.getServer().execute(() -> callback.accept(List.of()));
+                serverLevel.getServer().execute(() -> callback.accept(null));
             }
         }, Constants.ASYNC_POOL);
     }
