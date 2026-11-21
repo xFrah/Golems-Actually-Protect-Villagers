@@ -38,6 +38,9 @@ publishMods {
             minecraftVersions.addAll(project.publish_minecraft_versions.split(","))
             clientRequired = true
             serverRequired = true
+            if (project.name == 'fabric') {
+                requires("fabric-api")
+            }
         }
     }
     
@@ -46,6 +49,9 @@ publishMods {
             accessToken = getSecret("MODRINTH_TOKEN")
             projectId = project.modrinth_id
             minecraftVersions.addAll(project.publish_minecraft_versions.split(","))
+            if (project.name == 'fabric') {
+                requires("fabric-api")
+            }
         }
     }
 }
